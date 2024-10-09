@@ -111,7 +111,7 @@ def reorder_query_chromosomes(query_data, sorted_queries):
 # Plots the alignment threads
 #############################
 
-def create_thread(Rstart, Rend, Qstart, Qend, R_y=8, Q_y=4):
+def create_thread(Rstart, Rend, Qstart, Qend, R_y=8, Q_y=5):
     '''Generates the synteny thread'''
     
     # Define the corners of the filled area
@@ -119,11 +119,15 @@ def create_thread(Rstart, Rend, Qstart, Qend, R_y=8, Q_y=4):
     top_right = (Rend, R_y)
     bottom_left = (Qstart, Q_y)
     bottom_right = (Qend, Q_y)
-    
-    # Create polygon to fill the area between the lines
-    # I can later have an 'IF THE START > END THEN ADD IT AS A LIGHT RED...
-    filled_area = patches.Polygon([top_left, top_right, bottom_right, bottom_left], 
+
+    # Different colours for reverse sequences
+    if Rstart > Rend or Qstart > Qend:
+        filled_area = patches.Polygon([top_left, top_right, bottom_right, bottom_left], 
                                   closed=True, facecolor='red', edgecolor='none', alpha=0.5)
+    else:
+        filled_area = patches.Polygon([top_left, top_right, bottom_right, bottom_left], 
+                                  closed=True, facecolor='lightblue', edgecolor='none', alpha=0.5)
+    
     return filled_area
 
 #fig, ax = plt.subplots()

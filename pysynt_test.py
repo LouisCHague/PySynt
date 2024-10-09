@@ -12,11 +12,11 @@ from pysynt import import_genome, import_nucmer, calculate_midpoints, reorder_qu
 os.chdir("C://Users//louis//syn_plot")
 
 # Data
-alignments = import_nucmer("sugar_cane//out.coords")
-ref_data = import_genome("sugar_cane//Sspon.fna.fai")
-query_data = import_genome("sugar_cane//CC_1940.fna.fai")
-reference_scafs = ["Chr7C"]
-query_scafs = ["CM034588.1","CM034589.1"]
+alignments = import_nucmer("giardia//out.coords")
+ref_data = import_genome("giardia//WBC6_4_5.fna.fai")
+query_data = import_genome("giardia//BE2_4_5.fna.fai")
+reference_scafs = ["NC_051860.1", "NC_051859.1"]
+query_scafs = ["CP110919.1", "CP110920.1"]
 
 ###################################################################################
 # Need to make a subsetting function for ease or append it to the plotting function 
@@ -33,8 +33,18 @@ query_data = query_data[(query_data['seq_names'].isin(query_scafs))]
 # Plotting function
 ###################
 
-def plot_alignment_multi(ref_data, query_data, alignments):
+#print(ref_data.head())
+#print(query_data.head())
+#print(alignments.head())
+
+def plot_alignment_multi(ref_data, query_data, alignments, min_alignment_size):
     '''Synteny plotting function'''
+
+    # Minimum alignment size
+    alignments = alignments[
+    (abs(alignments['Rend'] - alignments['Rstart']) >= min_alignment_size) & 
+    (abs(alignments['Qend'] - alignments['Qstart']) >= min_alignment_size)
+    ]
 
     # Create a figure and axis
     fig, ax = plt.subplots()
@@ -67,26 +77,30 @@ def plot_alignment_multi(ref_data, query_data, alignments):
         # Chromosome label
         ax.text(y_position - row['seq_len'] / 2, 4.5, row['seq_names'], ha='center')
 
-    
+    # Need to offset reference alignments
+    # This step was done in reorder_query_chromosomes for query 
+    ref_data['chrom_offset'] = ref_data['seq_len'].cumsum().shift(fill_value=0)
+
     # Plot alignment threads
     for i, row in alignments.iterrows():
-        # Need to offset the threads by the previous chromosome 
-        # MIGHT HAVE TO DO THIS FOR REFERENCE CHROMOSOMES TOO! 
-        off_row = query_data[query_data['query_order'] == row['query']]
-        offset = off_row['chrom_offset']
+        off_ref = ref_data[ref_data['seq_names'] == row['reference']]
+        off_ref = off_ref['chrom_offset']
+
+        off_query = query_data[query_data['query_order'] == row['query']]
+        off_query = off_query['chrom_offset']
         # print(offset + 2)
         
         # Add offset to the threads
-        Rstart = row['Rstart'] + int(offset.iloc[0])
-        Rend = row['Rend'] + int(offset.iloc[0])
-        Qstart = row['Qstart'] + int(offset.iloc[0])
-        Qend = row['Qend'] + int(offset.iloc[0])
+        Rstart = row['Rstart'] + int(off_ref.iloc[0])
+        Rend = row['Rend'] + int(off_ref.iloc[0])
+        Qstart = row['Qstart'] + int(off_query.iloc[0])
+        Qend = row['Qend'] + int(off_query.iloc[0])
 
         # Generate thread polygon
         thread = create_thread(Rstart, Rend, Qstart, Qend)
         ax.add_patch(thread)
     
-    ax.set_xlim(0, x_position)
+    ax.set_xlim(0, x_position + 100)
     ax.set_ylim(1, 10)
     ax.set_title("Chromosome Blocks")
     plt.grid()
@@ -96,4 +110,4 @@ def plot_alignment_multi(ref_data, query_data, alignments):
     plt.show()
 
 # Example usage
-plot_alignment_multi(ref_data, query_data, alignments.head(500))
+plot_alignment_multi(ref_data, query_data, alignments, 9000)
