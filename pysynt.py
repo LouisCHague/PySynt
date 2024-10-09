@@ -1,11 +1,17 @@
 # PySynt Functions
 # Louis Hague
 
+# Imports
 import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 def import_nucmer(file_path):
+    '''Imports a pd.df of a nucmer coords file'''
+
+    # Dict. to hold coords info
     coords_info = {
-        "RStart": [],
+        "Rstart": [],
         "Rend": [],
         "Qstart": [],
         "Qend": [],
@@ -22,7 +28,7 @@ def import_nucmer(file_path):
                 line = line.strip().split("\t")
                 
                 if len(line) == 9:
-                    coords_info["RStart"].append(int(line[0]))  
+                    coords_info["Rstart"].append(int(line[0]))  
                     coords_info["Rend"].append(int(line[1]))    
                     coords_info["Qstart"].append(int(line[2]))   
                     coords_info["Qend"].append(int(line[3]))    
@@ -45,6 +51,7 @@ def import_nucmer(file_path):
 
 def get_contig_lengths(fai_file):
     '''Gets the lengths of the contigs'''
+
     seq_len = {}
     with open(fai_file, 'r') as file:
         for line in file:
@@ -54,6 +61,7 @@ def get_contig_lengths(fai_file):
 
 def import_genome(fai_file):
     '''Imports information from fai files'''
+
     seq_len = get_contig_lengths(fai_file)
 
     fai_df = pd.DataFrame({
@@ -63,44 +71,69 @@ def import_genome(fai_file):
         'seq_ori': ['+'] * len(seq_len),  
     })
 
-    # Calculate chromosome offsets
-    fai_df['chrom_offset'] = fai_df['seq_len'].cumsum().shift(fill_value=0)
-
     return fai_df
 
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+######################################################################
+# Reorders the alignments and query_data so the plot is easier to read
+######################################################################
 
-def draw_segments_with_fill(RStart, Rend, Qstart, Qend, R_y=8, Q_y=4):
-    # Create a figure and axis
-    fig, ax = plt.subplots()
+def calculate_midpoints(alignments):
+    '''Calculate midpoint for each alignment, generates ordered list of queries
+    AND reorders the alignments dataframe based on ordered query chromosomes'''
+
+    # Calculate the midpoint for each alignment
+    alignments['ref_midpoint'] = (alignments['Rstart'] + alignments['Rend']) / 2
+    
+    # Group by query chromosome, then calculate median midpoint for each group
+    query_midpoints = alignments.groupby('query')['ref_midpoint'].median()
+    
+    # Sort query chromosomes based on the calculated midpoints
+    sorted_queries = query_midpoints.sort_values().index.tolist()
+
+    # I want to convert the alignments so they follow the new order of the chromosomes
+    alignments['query'] = pd.Categorical(alignments['query'], categories=sorted_queries, ordered=True)
+    alignments = alignments.sort_values(by='query').reset_index(drop=True)
+    
+    return sorted_queries, alignments
+
+def reorder_query_chromosomes(query_data, sorted_queries):
+    '''Reorders query_data based on new order'''
+
+    query_data['query_order'] = pd.Categorical(query_data['seq_names'], categories=sorted_queries, ordered=True)
+    query_data = query_data.sort_values('query_order')
+
+    # Need to create an offset to offset the alignment strands in the graph
+    query_data['chrom_offset'] = query_data['seq_len'].cumsum().shift(fill_value=0)
+    
+    return query_data
+
+#############################
+# Plots the alignment threads
+#############################
+
+def create_thread(Rstart, Rend, Qstart, Qend, R_y=8, Q_y=4):
+    '''Generates the synteny thread'''
     
     # Define the corners of the filled area
-    top_left = (RStart, R_y)
+    top_left = (Rstart, R_y)
     top_right = (Rend, R_y)
     bottom_left = (Qstart, Q_y)
     bottom_right = (Qend, Q_y)
     
-    # Create a polygon to fill the area between the lines
+    # Create polygon to fill the area between the lines
+    # I can later have an 'IF THE START > END THEN ADD IT AS A LIGHT RED...
     filled_area = patches.Polygon([top_left, top_right, bottom_right, bottom_left], 
-                                  closed=True, facecolor='lightblue', edgecolor='none', alpha=0.5)
-    
-    # Add the threads to the plot
-    ax.add_patch(filled_area)
-    
-    ax.set_xlim(min(RStart, Qstart) - 1, max(Rend, Qend) + 1)
-    ax.set_ylim(Q_y - 2, R_y + 2)
-    ax.set_xlabel('X-axis')
-    ax.set_ylabel('Y-axis')
-    ax.set_title('Filled Area Between Segments Without Top and Bottom Lines')
-    
-    # Add grid and reference lines
-    plt.grid()
-    plt.axhline(0, color='black', linewidth=0.5, ls='--')
-    plt.axvline(0, color='black', linewidth=0.5, ls='--')
-    
-    # Display the plot
-    plt.show()
+                                  closed=True, facecolor='red', edgecolor='none', alpha=0.5)
+    return filled_area
 
-# Example usage
-draw_segments_with_fill(RStart=1, Rend=2, Qstart=2, Qend=3)
+#fig, ax = plt.subplots()
+#polygon = create_thread(Rstart=1,Rend=3,Qstart=1,Qend=4)
+#ax.add_patch(polygon)
+#ax.set_title("Chromosome Blocks")
+#plt.grid()
+#ax.set_xlim(0, 10)
+#ax.set_ylim(1, 10)
+#plt.axhline(0, color='black', linewidth=0.5, ls='--')
+#plt.axvline(0, color='black', linewidth=0.5, ls='--')
+# Display the plot
+#plt.show()
