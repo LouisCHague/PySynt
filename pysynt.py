@@ -143,7 +143,30 @@ def create_thread(Rstart, Rend, Qstart, Qend, R_y=8, Q_y=5):
 # Display the plot
 #plt.show()
 
-def plot_alignment_multi(ref_data, query_data, reference_scafs, query_scafs, alignments, min_alignment_size=5000):
+
+def create_chromosome(ax, genome_data, y_pos):
+    '''Generates chromosome blocks'''
+
+    # Initial position for the first chromosome
+    x_position = 0
+
+    # Iterate over each row in the genome_data DataFrame
+    for i, row in genome_data.iterrows():
+        # Create a rectangle for each chromosome
+        rect = patches.Rectangle((x_position, y_pos), row['seq_len'], 1, linewidth=1, edgecolor='black', facecolor='grey')
+        ax.add_patch(rect)
+        
+        # Position for the next chromosome
+        x_position += row['seq_len']
+        
+        # Add chromosome label text
+        ax.text(x_position - row['seq_len'] / 2, y_pos + 0.5, row['seq_names'], ha='center', va='center')
+    return x_position
+
+
+
+
+def plot_alignment_duo(ref_data, query_data, reference_scafs, query_scafs, alignments, min_alignment_size=5000):
     '''Synteny plotting function'''
 
     # Subsetting Alignments for scaffolds of interest
@@ -166,29 +189,8 @@ def plot_alignment_multi(ref_data, query_data, reference_scafs, query_scafs, ali
     sorted_queries, alignments = calculate_midpoints(alignments)
     query_data = reorder_query_chromosomes(query_data, sorted_queries)
 
-    # First ref plot position
-    x_position = 0
-
-    # Plot the ref chromosomes as rectangles next to one another
-    for i, row in ref_data.iterrows():
-        rect = patches.Rectangle((x_position, 8), row['seq_len'], 1, linewidth=1, edgecolor='black', facecolor='grey')
-        ax.add_patch(rect)
-        # Move the x pos for the start pos of the next rectangle
-        x_position += row['seq_len']
-        # Chromosome label
-        ax.text(x_position - row['seq_len'] / 2, 8.5, row['seq_names'], ha='center')
-
-    # First query plot position
-    y_position = 0
-
-    # Plot the query chromosomes as rectangles next to one another
-    for i, row in query_data.iterrows():
-        rect = patches.Rectangle((y_position, 4), row['seq_len'], 1, linewidth=1, edgecolor='black', facecolor='grey')
-        ax.add_patch(rect)
-        # Move the y pos for the start pos of the next rectangle
-        y_position += row['seq_len']
-        # Chromosome label
-        ax.text(y_position - row['seq_len'] / 2, 4.5, row['seq_names'], ha='center')
+    # Generate the chromosome blocks
+    x_position = max(create_chromosome(ax, ref_data, 8), create_chromosome(ax, query_data, 4))
 
     # Need to calculate offset for reference chromosomes
     # This step was done in reorder_query_chromosomes for query chromosomes
@@ -227,3 +229,59 @@ def plot_alignment_multi(ref_data, query_data, reference_scafs, query_scafs, ali
     plt.axvline(0, color='black', linewidth=0.5, ls='--')
     # Display the plot
     plt.show()
+
+######################################################
+# Multiple Synteny Plotter
+######################################################
+
+
+def import_multi_coords(alignments,chromosomes):
+    '''Imports coords files contained within a list and subsets them'''
+
+    # Pointer (For alignments and chromosomes)
+    a = 0
+    b = 1
+
+    # Dictionary to store dataframes on coords files
+    coords_dict = {}
+
+    # Subset the files
+    for i in alignments:
+
+        # Subset the coords files
+        coords_file = import_nucmer(alignments[a])
+        coords_file = coords_file[(coords_file['reference'].isin(chromosomes[a])) & 
+                                 (coords_file['query'].isin(chromosomes[b]))]
+        coords_dict[i] = coords_file 
+
+        # Alter pointers for next chromosome
+        a += 1
+        b += 1
+    return(coords_dict)
+
+def import_multi_fai(genomes,chromosomes):
+    '''Imports fai files contained within a list and subsets them'''
+
+    # Dictionary to store dataframes on fai files
+    fai_dict = {}
+
+    # Subset the files
+    for i in range(len(genomes)):
+        genome_file = import_genome(genomes[i])
+        genome_file = genome_file[(genome_file['seq_names'].isin(chromosomes[i]))]
+        fai_dict[genomes[i]] = genome_file 
+    return fai_dict
+
+
+
+
+def plot_alignment_multi(genomes, alignments, chromosomes):
+    '''Plots alignment between multiple genomes'''
+
+    alignment_df = import_multi_coords(alignments, chromosomes)
+    fai_df = import_multi_fai(genomes,chromosomes)
+    print(fai_df)
+
+    
+
+
