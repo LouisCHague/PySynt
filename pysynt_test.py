@@ -31,6 +31,14 @@ query_scafs = ["chr10"]
 # 4 blocks, 3 spaces = 7
 
 # List of coords files
+#alignments = ["Yeast//alignments//out_146_211.coords"]
+# Genomes files 
+#genomes = ["Yeast//genomes//GCA_000146045.2_R64_genomic.fna.fai",
+#             "Yeast//genomes//GCA_021172205.1_ASM2117220v1_genomic.fna.fai"]
+# Chromosomes of interest (First genome scaffs)...
+#chromosomes = [["BK006935.2"], ["CP089100.1"]]
+
+# List of coords files
 alignments = ["Yeast//alignments//out_146_211.coords", "Yeast//alignments//out_211_235.coords"]
 # Genomes files 
 genomes = ["Yeast//genomes//GCA_000146045.2_R64_genomic.fna.fai",

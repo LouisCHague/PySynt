@@ -166,6 +166,168 @@ def create_chromosome(ax, genome_data, y_pos):
 
 
 
+
+
+######################################################
+# Multiple Synteny Plotter
+######################################################
+
+
+def import_multi_coords(alignments,chromosomes):
+    '''Imports coords files contained within a list and subsets them'''
+
+    # Pointer (For alignments and chromosomes)
+    a = 0
+    b = 1
+
+    # Dictionary to store dataframes on coords files
+    coords_dict = {}
+
+    # Subset the files
+    for i in alignments:
+
+        # Subset the coords files
+        coords_file = import_nucmer(alignments[a])
+        coords_file = coords_file[(coords_file['reference'].isin(chromosomes[a])) & 
+                                 (coords_file['query'].isin(chromosomes[b]))]
+        coords_dict[i] = coords_file 
+
+        # Alter pointers for next chromosome
+        a += 1
+        b += 1
+    return(coords_dict)
+
+def import_multi_fai(genomes,chromosomes):
+    '''Imports fai files contained within a list and subsets them'''
+
+    # Dictionary to store dataframes on fai files
+    fai_dict = {}
+
+    # Subset the files
+    for i in range(len(genomes)):
+        genome_file = import_genome(genomes[i])
+        genome_file = genome_file[(genome_file['seq_names'].isin(chromosomes[i]))]
+        fai_dict[genomes[i]] = genome_file 
+    return fai_dict
+
+
+
+
+def plot_alignment_multi(genomes, alignments, chromosomes):
+    '''Plots alignment between multiple genomes'''
+
+    # Create a figure and axis
+    fig, ax = plt.subplots()
+
+    # Import bulk files
+    alignment_df = import_multi_coords(alignments, chromosomes)
+    fai_df = import_multi_fai(genomes,chromosomes)
+
+    #print(alignment_df)
+    
+    # Index to pass through fai files
+    n = 1
+    # Order alignments
+    for key, value in alignment_df.items():
+
+        sorted_queries, alignments = calculate_midpoints(value)
+        #print(sorted_queries)
+
+        # Update sorted coords file
+        alignment_df[key] = alignments
+        
+        # fai_df information
+        fai_keys = list(fai_df.keys())
+        fai_values = list(fai_df.values())
+
+        # Update fai_df value based on reordered value
+        fai_df[fai_keys[n]] = reorder_query_chromosomes(fai_values[n], sorted_queries)
+
+        # Iterate counter
+        n += 1
+    
+    #for key,value in fai_df.items():
+    #    print(value.head())
+
+    # Generate chromosome blocks
+    n = len(genomes) * 4
+    # Need to make the x-axis as wide as the longest genome
+    x_position = 0
+    for key, value in fai_df.items():
+        x_position = max(create_chromosome(ax, value, n), x_position)
+        n -= 4
+    
+    # Need to offset the chromosomes for the first genome
+    fai_df[fai_keys[0]]['chrom_offset'] = fai_values[0]['seq_len'].cumsum().shift(fill_value=0)
+    fai_keys = list(fai_df.keys())
+    fai_values = list(fai_df.values())
+
+    # Plot alignment threads
+    n = 0
+    y_axis_coord = len(genomes) * 4
+
+    for key, value in alignment_df.items():
+        for i, row in value.iterrows():
+
+            #print(fai_values)
+            #print(value)
+
+            # Obtain offset for current chromosome (Ref + Query)
+            if n == 0:
+                off_ref = fai_values[n][fai_values[n]['seq_names'] == row['reference']]
+                #print(f'off_ref: {off_ref}')
+                off_ref = off_ref['chrom_offset']
+
+                # Only those which have been altered will have query_order value
+                off_query = fai_values[n + 1][fai_values[n + 1]['query_order'] == row['query']]
+                #print(f'off_query: {off_query}')
+                off_query = off_query['chrom_offset']         
+            else:
+                # The original genome is fixed, the rest are reordered
+                #print(row)
+                #print(fai_values[n]['query_order'])
+                off_ref = fai_values[n][fai_values[n]['query_order'] == row['reference']]
+                #print(f'off_ref: {off_ref}')
+                off_ref = off_ref['chrom_offset']   
+
+                #print(row)
+                off_query = fai_values[n + 1][fai_values[n + 1]['query_order'] == row['query']]
+                #print(f'off_query: {off_query}')
+                off_query = off_query['chrom_offset']   
+        
+            # Add offset value to the thread alignment coordinate
+            Rstart = row['Rstart'] + int(off_ref.iloc[0])
+            Rend = row['Rend'] + int(off_ref.iloc[0])
+            Qstart = row['Qstart'] + int(off_query.iloc[0])
+            Qend = row['Qend'] + int(off_query.iloc[0])
+
+            # Generate thread polygon
+            thread = create_thread(Rstart, Rend, Qstart, Qend, R_y=y_axis_coord, Q_y=y_axis_coord - 3)
+            ax.add_patch(thread)
+
+        # Change the genome pair we are iterating over
+        # each time the alignment changes
+        n += 1
+        y_axis_coord -= 4
+    
+    # Graph Modifiers 
+    ax.set_xlim(0, x_position + 100)
+    ax.set_ylim(3, len(genomes) * 4 + 2)
+    ax.set_title("Chromosome Blocks")
+    ax.set_xlabel("Base Pair Length")
+    #plt.yticks([])
+    ax.ticklabel_format(useOffset=False, style='plain')
+    plt.grid()
+    plt.axhline(0, color='black', linewidth=0.5, ls='--')
+    plt.axvline(0, color='black', linewidth=0.5, ls='--')
+    # Display the plot
+    plt.show()
+
+
+    
+
+
+
 def plot_alignment_duo(ref_data, query_data, reference_scafs, query_scafs, alignments, min_alignment_size=5000):
     '''Synteny plotting function'''
 
@@ -229,59 +391,3 @@ def plot_alignment_duo(ref_data, query_data, reference_scafs, query_scafs, align
     plt.axvline(0, color='black', linewidth=0.5, ls='--')
     # Display the plot
     plt.show()
-
-######################################################
-# Multiple Synteny Plotter
-######################################################
-
-
-def import_multi_coords(alignments,chromosomes):
-    '''Imports coords files contained within a list and subsets them'''
-
-    # Pointer (For alignments and chromosomes)
-    a = 0
-    b = 1
-
-    # Dictionary to store dataframes on coords files
-    coords_dict = {}
-
-    # Subset the files
-    for i in alignments:
-
-        # Subset the coords files
-        coords_file = import_nucmer(alignments[a])
-        coords_file = coords_file[(coords_file['reference'].isin(chromosomes[a])) & 
-                                 (coords_file['query'].isin(chromosomes[b]))]
-        coords_dict[i] = coords_file 
-
-        # Alter pointers for next chromosome
-        a += 1
-        b += 1
-    return(coords_dict)
-
-def import_multi_fai(genomes,chromosomes):
-    '''Imports fai files contained within a list and subsets them'''
-
-    # Dictionary to store dataframes on fai files
-    fai_dict = {}
-
-    # Subset the files
-    for i in range(len(genomes)):
-        genome_file = import_genome(genomes[i])
-        genome_file = genome_file[(genome_file['seq_names'].isin(chromosomes[i]))]
-        fai_dict[genomes[i]] = genome_file 
-    return fai_dict
-
-
-
-
-def plot_alignment_multi(genomes, alignments, chromosomes):
-    '''Plots alignment between multiple genomes'''
-
-    alignment_df = import_multi_coords(alignments, chromosomes)
-    fai_df = import_multi_fai(genomes,chromosomes)
-    print(fai_df)
-
-    
-
-
