@@ -10,7 +10,7 @@ Align your reference and query Fasta files with [MUMmer](https://mummer4.github.
 * ```show-coords -T -H -r ref_qry.delta > ref_qry.coords```
 
 ## Visualisations
-plot_alignment_duo(ref_data, query_data, reference_scafs, query_scafs, alignments, min_alignment_size=10000)
+```plot_alignment_duo(ref_data, query_data, reference_scafs, query_scafs, alignments, min_alignment_size=10000)```
 ([Data](https://www.nature.com/articles/s41598-018-26416-2))
 
 ![Figure_1](https://github.com/user-attachments/assets/2686c927-593d-45d7-a51b-4e9ef3085451)
