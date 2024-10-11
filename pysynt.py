@@ -78,35 +78,17 @@ def import_genome(fai_file):
 # Reorders the alignments and query_data so the plot is easier to read
 ######################################################################
 
-def calculate_midpoints(alignments):
-    '''Calculate midpoint for each alignment, generates ordered list of queries
-    AND reorders the alignments dataframe based on ordered query chromosomes'''
+# def reorder_chromosomes(alignments, ref_data, query_data):
+#     # Step 1: Calculate average alignment length and create unique identifiers for reference-query pairs
+#     alignments['average_length'] = alignments['Rlen'] + alignments['Qlen']
+#     alignments['ref_query'] = alignments['reference'] + "_" + alignments['query']
+#     alignment_median = alignments.groupby('ref_query')
 
-    # Calculate the midpoint for each alignment
-    alignments['ref_midpoint'] = (alignments['Rstart'] + alignments['Rend']) / 2
+#     print(ref_data)
+#     print(query_data)
+#     print(alignment_median)
     
-    # Group by query chromosome, then calculate median midpoint for each group
-    query_midpoints = alignments.groupby('query')['ref_midpoint'].median()
-    
-    # Sort query chromosomes based on the calculated midpoints
-    sorted_queries = query_midpoints.sort_values().index.tolist()
-
-    # I want to convert the alignments so they follow the new order of the chromosomes
-    alignments['query'] = pd.Categorical(alignments['query'], categories=sorted_queries, ordered=True)
-    alignments = alignments.sort_values(by='query').reset_index(drop=True)
-    
-    return sorted_queries, alignments
-
-def reorder_query_chromosomes(query_data, sorted_queries):
-    '''Reorders query_data based on new order'''
-
-    query_data['query_order'] = pd.Categorical(query_data['seq_names'], categories=sorted_queries, ordered=True)
-    query_data = query_data.sort_values('query_order')
-
-    # Need to create an offset to offset the alignment strands in the graph
-    query_data['chrom_offset'] = query_data['seq_len'].cumsum().shift(fill_value=0)
-    
-    return query_data
+#     return 
 
 #############################
 # Plots the alignment threads
@@ -167,6 +149,69 @@ def create_chromosome(ax, genome_data, y_pos):
 
 
 
+def plot_alignment_duo(ref_data, query_data, reference_scafs, query_scafs, alignments, min_alignment_size=5000):
+    '''Synteny plotting function'''
+
+    # Subsetting Alignments for scaffolds of interest
+    alignments = alignments[(alignments['query'].isin(query_scafs)) & 
+                                 (alignments['reference'].isin(reference_scafs))]
+    # Subset ref_data and query_data based on scafs 
+    ref_data = ref_data[(ref_data['seq_names'].isin(reference_scafs))]
+    query_data = query_data[(query_data['seq_names'].isin(query_scafs))]
+
+    # Minimum alignment size
+    alignments = alignments[
+    (abs(alignments['Rend'] - alignments['Rstart']) >= min_alignment_size) & 
+    (abs(alignments['Qend'] - alignments['Qstart']) >= min_alignment_size)
+    ]
+
+    # Create a figure and axis
+    fig, ax = plt.subplots()
+
+    # Reorder the midpoints based on alignment
+    #reorder_chromosomes(alignments,ref_data,query_data)
+    # Offset changes where the alignments are positioned
+    query_data['chrom_offset'] = query_data['seq_len'].cumsum().shift(fill_value=0)
+    ref_data['chrom_offset'] = ref_data['seq_len'].cumsum().shift(fill_value=0)
+
+    # Generate the chromosome blocks
+    x_position = max(create_chromosome(ax, ref_data, 8), create_chromosome(ax, query_data, 4))
+
+
+    # Plot alignment threads
+    for i, row in alignments.iterrows():
+
+        # Obtain offset for current chromosome (Ref + Query)
+        off_ref = ref_data[ref_data['seq_names'] == row['reference']]
+        off_ref = off_ref['chrom_offset']
+
+        off_query = query_data[query_data['seq_names'] == row['query']]
+        off_query = off_query['chrom_offset']
+        # print(offset + 2)
+        
+        # Add offset value to the thread alignment coordinate
+        Rstart = row['Rstart'] + int(off_ref.iloc[0])
+        Rend = row['Rend'] + int(off_ref.iloc[0])
+        Qstart = row['Qstart'] + int(off_query.iloc[0])
+        Qend = row['Qend'] + int(off_query.iloc[0])
+
+        # Generate thread polygon
+        thread = create_thread(Rstart, Rend, Qstart, Qend)
+        ax.add_patch(thread)
+    
+    # Graph Modifiers 
+    ax.set_xlim(0, x_position + 100)
+    ax.set_ylim(3, 10)
+    ax.set_title("Chromosome Blocks")
+    ax.set_xlabel("Base Pair Length")
+    plt.yticks([])
+    ax.ticklabel_format(useOffset=False, style='plain')
+    plt.grid()
+    plt.axhline(0, color='black', linewidth=0.5, ls='--')
+    plt.axvline(0, color='black', linewidth=0.5, ls='--')
+    # Display the plot
+    plt.show()
+
 
 ######################################################
 # Multiple Synteny Plotter
@@ -213,7 +258,7 @@ def import_multi_fai(genomes,chromosomes):
 
 
 
-def plot_alignment_multi(genomes, alignments, chromosomes):
+def plot_alignment_multi(genomes, alignments, chromosomes,min_alignment_size=5000):
     '''Plots alignment between multiple genomes'''
 
     # Create a figure and axis
@@ -223,25 +268,29 @@ def plot_alignment_multi(genomes, alignments, chromosomes):
     alignment_df = import_multi_coords(alignments, chromosomes)
     fai_df = import_multi_fai(genomes,chromosomes)
 
-    #print(alignment_df)
+    # Minimum alignment size
+    for key, value in alignment_df.items():
+        alignment_df[key] = value[
+        (abs(value['Rend'] - value['Rstart']) >= min_alignment_size) & 
+        (abs(value['Qend'] - value['Qstart']) >= min_alignment_size)
+        ]
     
     # Index to pass through fai files
     n = 1
     # Order alignments
     for key, value in alignment_df.items():
 
-        sorted_queries, alignments = calculate_midpoints(value)
-        #print(sorted_queries)
-
-        # Update sorted coords file
-        alignment_df[key] = alignments
+        # Minimum alignment size
+        alignment_df[key] = value[
+        (abs(value['Rend'] - value['Rstart']) >= min_alignment_size) & 
+        (abs(value['Qend'] - value['Qstart']) >= min_alignment_size)
+        ]
         
         # fai_df information
         fai_keys = list(fai_df.keys())
         fai_values = list(fai_df.values())
 
-        # Update fai_df value based on reordered value
-        fai_df[fai_keys[n]] = reorder_query_chromosomes(fai_values[n], sorted_queries)
+        fai_df[fai_keys[n]]['chrom_offset'] = fai_values[n]['seq_len'].cumsum().shift(fill_value=0)
 
         # Iterate counter
         n += 1
@@ -262,6 +311,8 @@ def plot_alignment_multi(genomes, alignments, chromosomes):
     fai_keys = list(fai_df.keys())
     fai_values = list(fai_df.values())
 
+    # print(fai_values)
+
     # Plot alignment threads
     n = 0
     y_axis_coord = len(genomes) * 4
@@ -279,19 +330,19 @@ def plot_alignment_multi(genomes, alignments, chromosomes):
                 off_ref = off_ref['chrom_offset']
 
                 # Only those which have been altered will have query_order value
-                off_query = fai_values[n + 1][fai_values[n + 1]['query_order'] == row['query']]
+                off_query = fai_values[n + 1][fai_values[n + 1]['seq_names'] == row['query']]
                 #print(f'off_query: {off_query}')
                 off_query = off_query['chrom_offset']         
             else:
                 # The original genome is fixed, the rest are reordered
                 #print(row)
                 #print(fai_values[n]['query_order'])
-                off_ref = fai_values[n][fai_values[n]['query_order'] == row['reference']]
+                off_ref = fai_values[n][fai_values[n]['seq_names'] == row['reference']]
                 #print(f'off_ref: {off_ref}')
                 off_ref = off_ref['chrom_offset']   
 
                 #print(row)
-                off_query = fai_values[n + 1][fai_values[n + 1]['query_order'] == row['query']]
+                off_query = fai_values[n + 1][fai_values[n + 1]['seq_names'] == row['query']]
                 #print(f'off_query: {off_query}')
                 off_query = off_query['chrom_offset']   
         
@@ -302,8 +353,12 @@ def plot_alignment_multi(genomes, alignments, chromosomes):
             Qend = row['Qend'] + int(off_query.iloc[0])
 
             # Generate thread polygon
-            thread = create_thread(Rstart, Rend, Qstart, Qend, R_y=y_axis_coord, Q_y=y_axis_coord - 3)
-            ax.add_patch(thread)
+            if n == 0:
+                thread = create_thread(Rstart, Rend, Qstart, Qend, R_y=y_axis_coord, Q_y=y_axis_coord - 3)
+                ax.add_patch(thread)
+            else:
+                thread = create_thread(Rstart, Rend, Qstart, Qend, R_y=y_axis_coord, Q_y=y_axis_coord - 3)
+                ax.add_patch(thread)
 
         # Change the genome pair we are iterating over
         # each time the alignment changes
@@ -316,75 +371,6 @@ def plot_alignment_multi(genomes, alignments, chromosomes):
     ax.set_title("Chromosome Blocks")
     ax.set_xlabel("Base Pair Length")
     #plt.yticks([])
-    ax.ticklabel_format(useOffset=False, style='plain')
-    plt.grid()
-    plt.axhline(0, color='black', linewidth=0.5, ls='--')
-    plt.axvline(0, color='black', linewidth=0.5, ls='--')
-    # Display the plot
-    plt.show()
-
-
-    
-
-
-
-def plot_alignment_duo(ref_data, query_data, reference_scafs, query_scafs, alignments, min_alignment_size=5000):
-    '''Synteny plotting function'''
-
-    # Subsetting Alignments for scaffolds of interest
-    alignments = alignments[(alignments['query'].isin(query_scafs)) & 
-                                 (alignments['reference'].isin(reference_scafs))]
-    # Subset ref_data and query_data based on scafs 
-    ref_data = ref_data[(ref_data['seq_names'].isin(reference_scafs))]
-    query_data = query_data[(query_data['seq_names'].isin(query_scafs))]
-
-    # Minimum alignment size
-    alignments = alignments[
-    (abs(alignments['Rend'] - alignments['Rstart']) >= min_alignment_size) & 
-    (abs(alignments['Qend'] - alignments['Qstart']) >= min_alignment_size)
-    ]
-
-    # Create a figure and axis
-    fig, ax = plt.subplots()
-
-    # Calculate midpoints, reorders query_data and alignments
-    sorted_queries, alignments = calculate_midpoints(alignments)
-    query_data = reorder_query_chromosomes(query_data, sorted_queries)
-
-    # Generate the chromosome blocks
-    x_position = max(create_chromosome(ax, ref_data, 8), create_chromosome(ax, query_data, 4))
-
-    # Need to calculate offset for reference chromosomes
-    # This step was done in reorder_query_chromosomes for query chromosomes
-    ref_data['chrom_offset'] = ref_data['seq_len'].cumsum().shift(fill_value=0)
-
-    # Plot alignment threads
-    for i, row in alignments.iterrows():
-
-        # Obtain offset for current chromosome (Ref + Query)
-        off_ref = ref_data[ref_data['seq_names'] == row['reference']]
-        off_ref = off_ref['chrom_offset']
-
-        off_query = query_data[query_data['query_order'] == row['query']]
-        off_query = off_query['chrom_offset']
-        # print(offset + 2)
-        
-        # Add offset value to the thread alignment coordinate
-        Rstart = row['Rstart'] + int(off_ref.iloc[0])
-        Rend = row['Rend'] + int(off_ref.iloc[0])
-        Qstart = row['Qstart'] + int(off_query.iloc[0])
-        Qend = row['Qend'] + int(off_query.iloc[0])
-
-        # Generate thread polygon
-        thread = create_thread(Rstart, Rend, Qstart, Qend)
-        ax.add_patch(thread)
-    
-    # Graph Modifiers 
-    ax.set_xlim(0, x_position + 100)
-    ax.set_ylim(3, 10)
-    ax.set_title("Chromosome Blocks")
-    ax.set_xlabel("Base Pair Length")
-    plt.yticks([])
     ax.ticklabel_format(useOffset=False, style='plain')
     plt.grid()
     plt.axhline(0, color='black', linewidth=0.5, ls='--')
