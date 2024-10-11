@@ -1,4 +1,5 @@
-# PySynt Testing, Louis Hague
+# PySynt Testing
+# Louis Hague
 
 # Imports
 import os
@@ -10,20 +11,20 @@ os.chdir("C://Users//louis//syn_plot")
 # Data
 alignments = import_nucmer("melon//out.coords")
 ref_data = import_genome("melon//Melon_351_.fasta.fai")
-#print(ref_data)
 query_data = import_genome("melon//Melon_361_.fasta.fai")
+# Chromosomes of interest
 reference_scafs = ["chr1","chr10"]
 query_scafs = ["chr01","chr10"]
 # Example usage
-#plot_alignment_duo(ref_data, query_data, reference_scafs, query_scafs, alignments, min_alignment_size=10000)
+plot_alignment_duo(ref_data, query_data, reference_scafs, query_scafs, alignments, min_alignment_size=10000)
 
-# List of coords files
-alignments = ["Yeast//alignments//out_146_211.coords", "Yeast//alignments//out_211_235.coords"]
-# Genomes files 
-genomes = ["Yeast//genomes//GCA_000146045.2_R64_genomic.fna.fai",
-             "Yeast//genomes//GCA_021172205.1_ASM2117220v1_genomic.fna.fai",
-             "Yeast//genomes//GCA_023508825.1_ASM2350882v1_genomic.fna.fai"]
-# Chromosomes of interest (First genome scaffs)...
-chromosomes = [["BK006935.2"], ["CP089100.1"], ["CP096554.1"]]
+# List coords alignment files
+alignments = ["Yeast_2//alignments//out_146_211.coords", "Yeast_2//alignments//out_211_235.coords"]
+# Genome files 
+genomes = ["Yeast_2//genomes//GCF_000146_sample.fna.fai",
+             "Yeast_2//genomes//GCA_0211_sample.fna.fai",
+             "Yeast_2//genomes//GCA_0235_sample.fna.fai"]
+# Chromosomes of interest
+chromosomes = [["NC_001133.9", "NC_001134.8"], ["CP089100.1", "CP089101.1"], ["CP096554.1", "CP096553.1"]]
 # Example usage
 plot_alignment_multi(genomes, alignments, chromosomes)

@@ -74,22 +74,6 @@ def import_genome(fai_file):
 
     return fai_df
 
-######################################################################
-# Reorders the alignments and query_data so the plot is easier to read
-######################################################################
-
-# def reorder_chromosomes(alignments, ref_data, query_data):
-#     # Step 1: Calculate average alignment length and create unique identifiers for reference-query pairs
-#     alignments['average_length'] = alignments['Rlen'] + alignments['Qlen']
-#     alignments['ref_query'] = alignments['reference'] + "_" + alignments['query']
-#     alignment_median = alignments.groupby('ref_query')
-
-#     print(ref_data)
-#     print(query_data)
-#     print(alignment_median)
-    
-#     return 
-
 #############################
 # Plots the alignment threads
 #############################
@@ -320,31 +304,15 @@ def plot_alignment_multi(genomes, alignments, chromosomes,min_alignment_size=500
     for key, value in alignment_df.items():
         for i, row in value.iterrows():
 
-            #print(fai_values)
-            #print(value)
-
             # Obtain offset for current chromosome (Ref + Query)
-            if n == 0:
-                off_ref = fai_values[n][fai_values[n]['seq_names'] == row['reference']]
-                #print(f'off_ref: {off_ref}')
-                off_ref = off_ref['chrom_offset']
+            off_ref = fai_values[n][fai_values[n]['seq_names'] == row['reference']]
+            #print(f'off_ref: {off_ref}')
+            off_ref = off_ref['chrom_offset']   
 
-                # Only those which have been altered will have query_order value
-                off_query = fai_values[n + 1][fai_values[n + 1]['seq_names'] == row['query']]
-                #print(f'off_query: {off_query}')
-                off_query = off_query['chrom_offset']         
-            else:
-                # The original genome is fixed, the rest are reordered
-                #print(row)
-                #print(fai_values[n]['query_order'])
-                off_ref = fai_values[n][fai_values[n]['seq_names'] == row['reference']]
-                #print(f'off_ref: {off_ref}')
-                off_ref = off_ref['chrom_offset']   
-
-                #print(row)
-                off_query = fai_values[n + 1][fai_values[n + 1]['seq_names'] == row['query']]
-                #print(f'off_query: {off_query}')
-                off_query = off_query['chrom_offset']   
+            #print(row)
+            off_query = fai_values[n + 1][fai_values[n + 1]['seq_names'] == row['query']]
+            #print(f'off_query: {off_query}')
+            off_query = off_query['chrom_offset']   
         
             # Add offset value to the thread alignment coordinate
             Rstart = row['Rstart'] + int(off_ref.iloc[0])
@@ -353,12 +321,8 @@ def plot_alignment_multi(genomes, alignments, chromosomes,min_alignment_size=500
             Qend = row['Qend'] + int(off_query.iloc[0])
 
             # Generate thread polygon
-            if n == 0:
-                thread = create_thread(Rstart, Rend, Qstart, Qend, R_y=y_axis_coord, Q_y=y_axis_coord - 3)
-                ax.add_patch(thread)
-            else:
-                thread = create_thread(Rstart, Rend, Qstart, Qend, R_y=y_axis_coord, Q_y=y_axis_coord - 3)
-                ax.add_patch(thread)
+            thread = create_thread(Rstart, Rend, Qstart, Qend, R_y=y_axis_coord, Q_y=y_axis_coord - 3)
+            ax.add_patch(thread)
 
         # Change the genome pair we are iterating over
         # each time the alignment changes
